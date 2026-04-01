@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>India General Election 2025 — Official Digital Voting</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'eci-navy': '#1E3A6E',
+            'eci-dark': '#0F1E44',
+            'civic-green': '#1B5E3B',
+            'civic-light': '#2D7A52',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    * { font-family: 'Inter', system-ui, -apple-system, sans-serif; box-sizing: border-box; }
+    body { margin: 0; background: #d1d5db; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes sealPop {
+      0%   { opacity: 0; transform: scale(0.7); }
+      65%  { transform: scale(1.06); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    @keyframes inkStamp {
+      0%   { opacity: 0; transform: scale(0) rotate(-15deg); }
+      70%  { transform: scale(1.12) rotate(3deg); }
+      100% { opacity: 1; transform: scale(1) rotate(0deg); }
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes scanLine {
+      0%   { top: 8px; }
+      50%  { top: calc(100% - 8px); }
+      100% { top: 8px; }
+    }
+
+    .anim-fade    { animation: fadeIn 0.4s ease-out both; }
+    .anim-seal    { animation: sealPop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+    .anim-ink     { animation: inkStamp 1.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+    .anim-blink   { animation: blink 2s ease-in-out infinite; }
+    .anim-spin    { animation: spin 0.9s linear infinite; }
+    .anim-scanline { animation: scanLine 2s ease-in-out infinite; }
+
+    .press-btn { transition: transform 0.1s; }
+    .press-btn:active { transform: scale(0.97); }
+
+    .scan-frame { position: relative; overflow: hidden; }
+    .scan-frame::after {
+      content: '';
+      position: absolute;
+      left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #60a5fa, transparent);
+      animation: scanLine 2s ease-in-out infinite;
+    }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+/* ── Screen IDs ─────────────────────────────────────────────────────────── */
+const S = {
+  S01:'S01', S02:'S02', S03:'S03', S04:'S04',
+  S05:'S05', S06:'S06', S07:'S07', S08:'S08', S09:'S09',
+  S10:'S10', S11:'S11', S12:'S12', S13:'S13', S14:'S14',
+  S15:'S15', S16:'S16', S17:'S17', S18:'S18',
+  E01:'E01', E02:'E02', E03:'E03', E04:'E04',
+};
+
+const SCREEN_META = [
+  { id:'S01', label:'S-01  Eligibility Splash',        phase:'Phase 1 — Pre-vote' },
+  { id:'S02', label:'S-02  Voter Roll Check',           phase:'Phase 1 — Pre-vote' },
+  { id:'S03', label:'S-03  Constituency & Booth Info',  phase:'Phase 1 — Pre-vote' },
+  { id:'S04', label:'S-04  First-Time Voter Guide',     phase:'Phase 1 — Pre-vote' },
+  { id:'S05', label:'S-05  Session Start Gate',         phase:'Phase 2 — Identity verification' },
+  { id:'S06', label:'S-06  Photo ID Verification',      phase:'Phase 2 — Identity verification' },
+  { id:'S07', label:'S-07  Voter Matched',              phase:'Phase 2 — Identity verification' },
+  { id:'S08', label:'S-08  Digital Ink Mark',           phase:'Phase 2 — Identity verification' },
+  { id:'S09', label:'S-09  Private Session Declared',   phase:'Phase 2 — Identity verification' },
+  { id:'S10', label:'S-10  Ballot Screen',              phase:'Phase 3 — Voting session' },
+  { id:'S11', label:'S-11  Selection State',            phase:'Phase 3 — Voting session' },
+  { id:'S12', label:'S-12  Review Screen',              phase:'Phase 3 — Voting session' },
+  { id:'S13', label:'S-13  Cast Confirmation Modal',    phase:'Phase 3 — Voting session' },
+  { id:'S14', label:'S-14  Vote Cast Ceremony',         phase:'Phase 3 — Voting session' },
+  { id:'S15', label:'S-15  Voter Receipt',              phase:'Phase 4 — Post-vote' },
+  { id:'S16', label:'S-16  Civic Badge',                phase:'Phase 4 — Post-vote' },
+  { id:'S17', label:'S-17  Verify Your Vote',           phase:'Phase 4 — Post-vote' },
+  { id:'S18', label:'S-18  Session Closed',             phase:'Phase 4 — Post-vote' },
+  { id:'E01', label:'E-01  Name Not Found',             phase:'Error & Edge States' },
+  { id:'E02', label:'E-02  ID Mismatch',                phase:'Error & Edge States' },
+  { id:'E03', label:'E-03  Already Voted Flag',         phase:'Error & Edge States' },
+  { id:'E04', label:'E-04  Session Timeout',            phase:'Error & Edge States' },
+];
+
+/* ── Mock data ──────────────────────────────────────────────────────────── */
+const VOTER = {
+  name: 'Arjun Kumar Sharma',
+  serial: 'Part 042 — Serial 0187',
+  constituency: 'Delhi North West',
+  ward: 'Ward 42 — Pitampura',
+  window: '7 April 2025, 7:00 AM — 6:00 PM',
+  epic: 'DL/04/087/123456',
+  reference: 'A7K2-9PQ4-3MN8',
+};
+
+const CANDIDATES = [
+  { id:1, num:'1', name:'Priya Mehra',     party:'National Democratic Alliance', symbol:'🪷', abbr:'NDA',  photo:'P' },
+  { id:2, num:'2', name:'Rajesh Tiwari',   party:'Indian National Congress',      symbol:'✋', abbr:'INC',  photo:'R' },
+  { id:3, num:'3', name:'Sunita Yadav',    party:'Aam Aadmi Party',              symbol:'🧹', abbr:'AAP',  photo:'S' },
+  { id:4, num:'4', name:'Mohammed Farooq', party:'Samajwadi Party',              symbol:'🚲', abbr:'SP',   photo:'M' },
+  { id:5, num:'5', name:'Kavitha Reddy',   party:'Independent',                  symbol:'⭐', abbr:'IND',  photo:'K' },
+  { id:6, num:'6', name:'NOTA',            party:'None of the above',            symbol:'🚫', abbr:'NOTA', photo:null, isNota:true },
+];
+
+const LANGS = ['English','हिन्दी','বাংলা','తెలుగు','मराठी','தமிழ்','ગુજરાતી','ಕನ್ನಡ','ਪੰਜਾਬੀ','ଓଡ଼ିଆ','മലയാളം','অসমীয়া','मैथिली','संस्कृत','नेपाली','বড়ো','Dogri','Kashmiri','Konkani','Maithili','Manipuri','Sindhi'];
+
+/* ── Shared components ──────────────────────────────────────────────────── */
+
+function ECIEmblem({ size = 72, light = false }) {
+  const c = light ? 'rgba(255,255,255,0.9)' : '#1E3A6E';
+  const bg = light ? 'rgba(255,255,255,0.12)' : '#EEF2FF';
+  const ring = light ? 'rgba(255,255,255,0.5)' : '#1E3A6E';
+  return (
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+      <svg width={size} height={size} viewBox="0 0 80 80" fill="none">
+        <circle cx="40" cy="40" r="37" fill={bg} stroke={ring} strokeWidth="2"/>
+        <path d="M40 10 L43.5 22 L57 22 L46.3 29.5 L50 42 L40 34.5 L30 42 L33.7 29.5 L23 22 L36.5 22 Z" fill={c}/>
+        <ellipse cx="40" cy="54" rx="9" ry="8" fill={light ? 'rgba(255,255,255,0.2)' : '#C7D2FE'} stroke={c} strokeWidth="1.5"/>
+        <text x="40" y="57" textAnchor="middle" fontSize="8" fill={c} fontWeight="700">ECI</text>
+        <path d="M24 66 Q40 73 56 66" stroke={c} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+      </svg>
+    </div>
+  );
+}
+
+function PrivacyPill() {
+  const [tip, setTip] = useState(false);
+  return (
+    <div style={{ position:'relative' }}>
+      <button onClick={() => setTip(t => !t)}
+        className="flex items-center gap-1.5 bg-green-700 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm"
+      >
+        <span className="w-2 h-2 rounded-full bg-green-300 anim-blink" style={{display:'inline-block'}}/>
+        Private session active
+      </button>
+      {tip && (
+        <div className="absolute top-9 right-0 bg-gray-900 text-white text-xs p-3 rounded-xl shadow-xl z-50"
+             style={{width:220}}>
+          Your vote is private. No one can see your choice. Only your participation is recorded.
+          <button onClick={() => setTip(false)} className="block mt-2 text-green-300 font-semibold">Got it</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PhaseBar({ label }) {
+  return <p className="text-xs font-bold text-blue-700 tracking-widest uppercase mb-3">{label}</p>;
+}
+
+function NavHeader({ light = false }) {
+  return (
+    <div className={`px-5 py-4 flex items-center gap-3 ${light ? 'bg-blue-900' : 'bg-blue-900'}`}>
+      <ECIEmblem size={30} light />
+      <div>
+        <p className="text-white text-sm font-semibold leading-none">Election Commission of India</p>
+        <p className="text-blue-300 text-xs mt-0.5">General Election 2025</p>
+      </div>
+    </div>
+  );
+}
+
+function Spinner() {
+  return <span className="inline-block w-5 h-5 rounded-full border-2 border-white/30 border-t-white anim-spin"/>;
+}
+
+/* ── PHASE 1: Pre-vote ───────────────────────────────────────────────────── */
+
+function S01_Splash({ go }) {
+  const [lang, setLang] = useState('English');
+  return (
+    <div className="min-h-screen flex flex-col"
+         style={{ background:'linear-gradient(155deg,#08142e 0%,#1E3A6E 55%,#0d2a50 100%)' }}>
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-14 anim-fade">
+        <div className="anim-seal mb-5">
+          <ECIEmblem size={88} light />
+        </div>
+        <h1 className="text-3xl font-extrabold text-white text-center leading-tight mb-2 tracking-tight">
+          India's General Election 2025
+        </h1>
+        <p className="text-blue-300 text-sm text-center mb-8 font-medium">
+          Official digital voting platform · Election Commission of India
+        </p>
+
+        <div className="w-full max-w-xs bg-white/10 border border-white/20 rounded-2xl p-5 mb-7 backdrop-blur-sm">
+          <p className="text-white text-sm leading-relaxed text-center">
+            This is a secure, official platform. Your identity will be verified before you vote.{' '}
+            <span className="text-blue-200">Your vote is private — no one, including this system, can see your choice.</span>
+          </p>
+        </div>
+
+        <div className="w-full max-w-xs mb-6">
+          <label className="text-blue-300 text-xs font-semibold uppercase tracking-wide mb-2 block">
+            Select your language
+          </label>
+          <div className="relative">
+            <select value={lang} onChange={e => setLang(e.target.value)}
+              className="w-full appearance-none bg-white/10 border border-white/30 text-white rounded-xl px-4 py-3 text-sm pr-8">
+              {LANGS.map(l => <option key={l} value={l} className="text-gray-900 bg-white">{l}</option>)}
+            </select>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 pointer-events-none">▾</span>
+          </div>
+        </div>
+
+        <button onClick={() => go(S.S02)}
+          className="w-full max-w-xs bg-white text-blue-900 font-bold py-4 rounded-2xl text-base shadow-xl press-btn hover:bg-blue-50 transition-colors">
+          Check my eligibility
+        </button>
+      </div>
+
+      <div className="pb-8 text-center">
+        <p className="text-blue-400 text-xs">
+          Voter Helpline: <span className="font-bold text-blue-200">1950</span> · Available 24/7 · 22 languages
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function S02_VoterRoll({ go }) {
+  const [mode, setMode] = useState('epic');
+  const [epic, setEpic] = useState('');
+  const [name, setName] = useState('');
+  const [dob, setDob] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const search = () => {
+    setBusy(true);
+    setTimeout(() => {
+      setBusy(false);
+      if (epic.toUpperCase().includes('NOPE') || name.toLowerCase().includes('nope')) go(S.E01);
+      else go(S.S03);
+    }, 1600);
+  };
+
+  const ready = mode === 'epic' ? epic.trim().length > 0 : name.trim().length > 0 && dob;
+
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      <NavHeader />
+      <div className="flex-1 px-5 py-6 anim-fade overflow-y-auto">
+        <PhaseBar label="Step 1 of 3 — Eligibility" />
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-1">Let's find you on the voter list</h2>
+        <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+          Enter your EPIC number or your full name and date of birth. We'll confirm you're registered before you go further.
+        </p>
+
+        <div className="flex gap-1.5 bg-gray-100 rounded-xl p-1 mb-6">
+          {[['epic','EPIC number'],['name','Name & DOB']].map(([v,l]) => (
+            <button key={v} onClick={() => setMode(v)}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${mode===v?'bg-white shadow text-blue-900':'text-gray-400'}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'epic' ? (
+          <div className="mb-5">
+            <label className="text-sm font-semibold text-gray-700 mb-1.5 block">EPIC number</label>
+            <input value={epic} onChange={e => setEpic(e.target.value)}
+              placeholder="e.g. ABC1234567"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 uppercase tracking-wider"/>
+            <p className="text-xs text-gray-400 mt-1.5">Found on your Voter ID card · 10 characters</p>
+          </div>
+        ) : (
+          <div className="space-y-4 mb-5">
+            <div>
+              <label className="text-sm font-semibold text-gray-700 mb-1.5 block">Full name as on voter ID</label>
+              <input value={name} onChange={e => setName(e.target.value)}
+                placeholder="Enter your full name"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"/>
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-gray-700 mb-1.5 block">Date of birth</label>
+              <input type="date" value={dob} onChange={e => setDob(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"/>
+            </div>
+          </div>
+        )}
+
+        <button onClick={search} disabled={!ready || busy}
+          className="w-full bg-blue-900 text-white font-bold py-4 rounded-2xl text-sm press-btn disabled:opacity-40 transition-opacity mb-4">
+          {busy ? <span className="flex items-center justify-center gap-2"><Spinner/>Searching...</span> : 'Find my name'}
+        </button>
+        <p className="text-center text-sm text-gray-500">
+          Having trouble?{' '}
+          <button className="text-blue-700 font-semibold">Call 1950</button>
+        </p>
+
+        <div className="mt-6 p-3 bg-amber-50 border border-amber-100 rounded-xl">
+          <p className="text-xs text-amber-700">
+            <strong>Demo tip:</strong> Type "NOPE" in any field to see the "Name Not Found" error state (E-01).
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function S03_ConstituencyInfo({ go }) {
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      <NavHeader />
+      <div className="flex-1 px-5 py-6 anim-fade overflow-y-auto">
+        <PhaseBar label="Step 2 of 3 — Your details" />
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-0.5">You're registered.</h2>
+        <p className="text-gray-400 text-sm mb-6">Here's your information.</p>
+
+        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-5">
+          <div className="flex items-center gap-3 mb-4 pb-4 border-b border-blue-100">
+            <div className="w-12 h-12 rounded-xl bg-blue-900 flex items-center justify-center text-white text-lg font-black">
+              {VOTER.name[0]}
+            </div>
+            <div>
+              <p className="font-bold text-gray-900">{VOTER.name}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{VOTER.serial}</p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {[
+              ['Constituency', VOTER.constituency],
+              ['Ward', VOTER.ward],
+              ['Voting window', VOTER.window],
+              ['Candidates', `${CANDIDATES.length - 1} candidates are standing in your constituency`],
+            ].map(([k,v]) => (
+              <div key={k}>
+                <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">{k}</p>
+                <p className="text-sm text-gray-900 font-medium mt-0.5">{v}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 mt-4 pt-3 border-t border-blue-100">
+            You will see all candidate names and symbols when you vote.
+          </p>
+        </div>
+
+        <button onClick={() => go(S.S04)}
+          className="w-full bg-blue-900 text-white font-bold py-4 rounded-2xl press-btn mb-3">
+          Continue →
+        </button>
+        <button className="w-full text-blue-700 font-semibold text-sm py-2">Save this information</button>
+      </div>
+    </div>
+  );
+}
+
+function S04_Guide({ go }) {
+  const steps = [
+    { icon:'🪪', n:1, t:'Verify your identity',      b:"We'll ask you to confirm your photo ID. This takes about 60 seconds." },
+    { icon:'🔒', n:2, t:'Enter your private session', b:'Once verified, your session is yours alone. No one can see your screen.' },
+    { icon:'🗳️', n:3, t:'Choose your candidate',     b:"You'll see all candidates with their name, photo, and party symbol. Take your time." },
+    { icon:'✅', n:4, t:'Review and cast',            b:'You can review your choice before you confirm. Once cast, your vote is final.' },
+  ];
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      <NavHeader />
+      <div className="flex-1 px-5 py-6 anim-fade overflow-y-auto">
+        <PhaseBar label="Step 3 of 3 — How it works" />
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-0.5">Here's what to expect</h2>
+        <p className="text-gray-400 text-sm mb-7">Four steps. About 3 minutes. Completely private.</p>
+
+        <div className="space-y-0 mb-6">
+          {steps.map((s, i) => (
+            <div key={s.n} className="flex gap-4 items-start">
+              <div className="flex flex-col items-center" style={{minWidth:40}}>
+                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-xl">
+                  {s.icon}
+                </div>
+                {i < steps.length - 1 && <div className="w-0.5 flex-1 bg-blue-100 my-1" style={{minHeight:24}}/>}
+              </div>
+              <div className="flex-1 pb-5">
+                <p className="font-semibold text-gray-900 text-sm">Step {s.n}: {s.t}</p>
+                <p className="text-gray-500 text-sm mt-1 leading-relaxed">{s.b}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-3">
+          <p className="text-green-800 text-sm leading-relaxed">
+            <span className="font-bold">Your vote is private.</span>{' '}
+            After you cast, this system records only that you voted — not who you voted for.
+          </p>
+        </div>
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-7">
+          <p className="text-orange-800 text-sm">
+            If you see anything suspicious or are pressured to vote a certain way, call{' '}
+            <span className="font-bold">1950</span> immediately.
+          </p>
+        </div>
+
+        <button onClick={() => go(S.S05)}
+          className="w-full bg-blue-900 text-white font-bold py-4 rounded-2xl press-btn mb-3">
+          I'm ready — begin verification →
+        </button>
+        <button onClick={() => go(S.S05)}
+          className="w-full text-gray-400 text-sm py-2">
+          Skip guide (returning voter)
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── PHASE 2: Identity Verification ─────────────────────────────────────── */
+
+function S05_SessionStart({ go }) {
+  const t = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true });
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-between py-14 px-6"
+         style={{ background:'linear-gradient(155deg,#06101e 0%,#0d1f44 100%)' }}>
+      <div/>
+      <div className="text-center anim-fade w-full max-w-xs">
+        <div className="anim-seal mb-6">
+          <ECIEmblem size={72} light />
+        </div>
+        <h2 className="text-2xl font-extrabold text-white mb-3 leading-tight">Your voting session is beginning</h2>
+        <p className="text-blue-300 text-sm leading-relaxed mb-7">
+          From this point, your activity is recorded as part of the official election process. Your session is time-stamped and secure.
+        </p>
+
+        <div className="bg-white/10 border border-white/20 rounded-xl p-4 mb-5">
+          <p className="text-blue-400 text-xs mb-1">Session opened at</p>
+          <p className="text-white font-mono font-bold">{t}, 7 April 2025</p>
+        </div>
+
+        <div className="flex items-start gap-2.5 bg-yellow-500/10 border border-yellow-500/25 rounded-xl p-3 mb-8 text-left">
+          <span className="text-yellow-300 mt-0.5">📵</span>
+          <p className="text-yellow-200 text-xs leading-relaxed">Screenshots are disabled during your session to protect your privacy.</p>
+        </div>
+
+        <button onClick={() => go(S.S06)}
+          className="w-full bg-white text-blue-900 font-bold py-4 rounded-2xl press-btn shadow-xl">
+          Begin identity verification
+        </button>
+      </div>
+      <p className="text-blue-500 text-xs text-center">No back navigation from this screen onward</p>
+    </div>
+  );
+}
+
+function S06_PhotoID({ go }) {
+  const [state, setState] = useState('idle'); // idle scanning matching verified retry
+  const [tries, setTries] = useState(0);
+
+  const doScan = () => {
+    setState('scanning');
+    setTimeout(() => setState('matching'), 1100);
+    setTimeout(() => { setState('verified'); setTimeout(() => go(S.S07), 700); }, 2400);
+  };
+
+  const doRetry = () => {
+    const n = tries + 1;
+    setTries(n);
+    if (n >= 3) go(S.E02);
+    else setState('idle');
+  };
+
+  const ACCEPTED = ['EPIC','Aadhaar','Driving licence','PAN card','Passport','MNREGA job card','Bank passbook with photo','Ayushman Bharat card','Service ID with photo','Pension document with photo'];
+
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      <div className="bg-blue-900 px-5 py-4">
+        <div className="flex items-center justify-between">
+          <p className="text-white font-semibold text-sm">Identity check — Step 1 of 2</p>
+          <div className="flex gap-1">
+            <div className="h-1.5 w-10 bg-white rounded-full"/>
+            <div className="h-1.5 w-10 bg-white/30 rounded-full"/>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 px-5 py-6 anim-fade overflow-y-auto">
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-1.5">Show us your voter ID</h2>
+        <p className="text-gray-500 text-sm mb-5 leading-relaxed">
+          Place your EPIC card flat and in good light. We'll read your details automatically.
+        </p>
+
+        {/* Camera frame */}
+        <div className={`bg-gray-900 rounded-2xl mb-4 flex items-center justify-center relative ${state==='scanning'||state==='matching'?'scan-frame':''}`}
+             style={{ height:190 }}>
+          {state === 'idle' && (
+            <div className="text-center">
+              {/* Corner guides */}
+              {['top-2 left-2 border-t-2 border-l-2 rounded-tl-lg',
+                'top-2 right-2 border-t-2 border-r-2 rounded-tr-lg',
+                'bottom-2 left-2 border-b-2 border-l-2 rounded-bl-lg',
+                'bottom-2 right-2 border-b-2 border-r-2 rounded-br-lg'].map((cls,i) => (
+                <div key={i} className={`absolute w-5 h-5 border-blue-400 ${cls}`}/>
+              ))}
+              <div className="text-4xl mb-2">📷</div>
+              <p className="text-gray-400 text-sm">Position your ID here</p>
+            </div>
+          )}
+          {(state === 'scanning' || state === 'matching') && (
+            <div className="text-center">
+              <Spinner/>
+              <p className="text-white text-sm mt-3">
+                {state === 'scanning' ? 'Reading your ID...' : 'Confirming your details...'}
+              </p>
+            </div>
+          )}
+          {state === 'verified' && (
+            <div className="text-center anim-fade">
+              <div className="text-5xl mb-2">✅</div>
+              <p className="text-green-400 font-bold">Identity confirmed</p>
+            </div>
+          )}
+          {state === 'retry' && (
+            <div className="text-center px-5">
+              <div className="text-3xl mb-2">⚠️</div>
+              <p className="text-yellow-300 text-sm">We couldn't read that clearly. Try again in better light, or use a different ID.</p>
+            </div>
+          )}
+        </div>
+
+        {state === 'idle' && (
+          <button onClick={doScan}
+            className="w-full bg-blue-900 text-white font-bold py-4 rounded-2xl press-btn mb-3">
+            Scan my ID
+          </button>
+        )}
+        {state === 'retry' && (
+          <button onClick={doRetry}
+            className="w-full bg-blue-900 text-white font-bold py-4 rounded-2xl press-btn mb-3">
+            Try again — attempt {tries + 1} of 3
+          </button>
+        )}
+
+        <button className="w-full text-blue-700 font-semibold text-sm py-2 mb-5">
+          Enter ID number manually instead
+        </button>
+
+        <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Accepted IDs</p>
+          <div className="flex flex-wrap gap-1.5">
+            {ACCEPTED.map(id => (
+              <span key={id} className="bg-white border border-gray-200 text-gray-600 text-xs px-2.5 py-1 rounded-lg">{id}</span>
+            ))}
+          </div>
+        </div>
+
+        <p className="text-center text-sm text-gray-400 mt-5">
+          Can't scan? <button className="text-blue-700 font-bold">Call 1950</button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function S07_VoterMatched({ go }) {
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      <div className="bg-blue-900 px-5 py-4">
+        <div className="flex items-center justify-between">
+          <p className="text-white font-semibold text-sm">Identity check — Step 2 of 2</p>
+          <div className="flex gap-1">
+            <div className="h-1.5 w-10 bg-white rounded-full"/>
+            <div className="h-1.5 w-10 bg-white rounded-full"/>
+          </div>
+        </div>
+      </div>
+      <div className="flex-1 px-5 py-8 anim-fade flex flex-col">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center text-3xl mx-auto mb-4">✅</div>
+          <h2 className="text-3xl font-extrabold text-gray-900">We found you</h2>
+        </div>
+
+        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-6">
+          <div className="flex items-center gap-4 mb-4 pb-4 border-b border-blue-100">
+            <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-200 to-blue-300 flex items-center justify-center relative overflow-hidden">
+              <span className="text-2xl filter blur-sm">👤</span>
+              <div className="absolute inset-0 bg-blue-200/40"/>
+              <p className="absolute bottom-1 text-blue-700 text-xs font-bold">ID</p>
+            </div>
+            <div>
+              <p className="font-extrabold text-gray-900 text-lg leading-tight">{VOTER.name}</p>
+              <p className="text-gray-500 text-xs mt-0.5">{VOTER.serial}</p>
+              <p className="text-blue-700 text-sm font-semibold mt-1">{VOTER.constituency}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+            <span className="text-green-600 font-bold">✓</span>
+            <span className="text-green-800 text-sm font-semibold">Identity verified against electoral roll</span>
+          </div>
+        </div>
+
+        <p className="text-gray-500 text-sm text-center mb-8 leading-relaxed">
+          Please confirm this is you before continuing.
+        </p>
+
+        <div className="mt-auto space-y-3">
+          <button onClick={() => go(S.S08)}
+            className="w-full bg-blue-900 text-white font-bold py-4 rounded-2xl press-btn">
+            Yes, this is me →
+          </button>
+          <button className="w-full text-red-600 font-semibold text-sm py-2">
+            This isn't right — get help
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function S08_DigitalInk({ go }) {
+  const [phase, setPhase] = useState(0); // 0 stamp, 1 check, 2 confirmed
+  const t = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true });
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase(1), 1500);
+    const t2 = setTimeout(() => setPhase(2), 3100);
+    const t3 = setTimeout(() => go(S.S09), 4400);
+    return () => [t1,t2,t3].forEach(clearTimeout);
+  }, []);
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-14"
+         style={{ background:'linear-gradient(155deg,#1a003e 0%,#3b0764 50%,#1a003e 100%)' }}>
+      <div className="text-center anim-fade max-w-xs w-full">
+        <div className="mb-7 flex justify-center">
+          {phase === 0 && <div className="text-8xl anim-ink">🖊️</div>}
+          {phase === 1 && (
+            <div className="relative flex items-center justify-center w-24 h-24">
+              <div className="text-6xl">🖊️</div>
+              <div className="absolute inset-0 rounded-full border-2 border-purple-400 border-t-transparent anim-spin"/>
+            </div>
+          )}
+          {phase === 2 && (
+            <div className="w-24 h-24 rounded-full bg-purple-600 flex items-center justify-center anim-fade shadow-xl shadow-purple-900">
+              <span className="text-white text-4xl font-black">✓</span>
+            </div>
+          )}
+        </div>
+
+        <h2 className="text-xl font-extrabold text-white mb-3">
+          {phase < 2 ? (phase === 0 ? 'Marking your participation' : 'Checking records...') : 'Mark confirmed'}
+        </h2>
+        <p className="text-purple-200 text-sm leading-relaxed mb-5">
+          This mark means you have entered the official voting record. It prevents anyone from voting more than once in your name.
+        </p>
+
+        {phase === 2 && (
+          <div className="bg-white/10 border border-white/20 rounded-xl p-4 anim-fade">
+            <p className="text-purple-300 text-xs mb-1">Your mark was recorded at</p>
+            <p className="text-white font-mono font-bold">{t}, 7 April 2025</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function S09_PrivateSession({ go }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-between py-14 px-6"
+         style={{ background:'linear-gradient(155deg,#082d1a 0%,#1B5E3B 100%)' }}>
+      <div/>
+      <div className="text-center anim-fade max-w-xs w-full">
+        <div className="text-7xl mb-6">🔒</div>
+        <h2 className="text-2xl font-extrabold text-white mb-4 leading-tight">Your private session has begun</h2>
+        <p className="text-green-100 text-sm leading-relaxed mb-7">
+          From here, your screen is yours alone. No one — including this system — can see what you choose. Your vote is completely private.
+        </p>
+
+        <div className="bg-white/10 border border-white/20 rounded-xl p-4 mb-8">
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <span className="w-2 h-2 rounded-full bg-green-300 anim-blink inline-block"/>
+            <p className="text-white font-bold text-sm">Private session active</p>
+          </div>
+          <p className="text-green-300 text-xs">This indicator stays on every screen until your vote is cast</p>
+        </div>
+
+        <button onClick={() => go(S.S10)}
+          className="w-full bg-white text-green-900 font-bold py-4 rounded-2xl press-btn shadow-xl">
+          See the ballot →
+        </button>
+      </div>
+      <p className="text-green-500 text-xs text-center">Back navigation is disabled · Need help? Call 1950</p>
+    </div>
+  );
+}
+
+/* ── PHASE 3: Voting Session ─────────────────────────────────────────────── */
+
+function S10_Ballot({ go, setChoice }) {
+  const pick = (c) => { setChoice(c); go(S.S11); };
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="bg-blue-900 px-5 py-3 sticky top-0 z-10">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white font-bold text-sm">Your ballot</p>
+            <p className="text-blue-300 text-xs">{VOTER.constituency}</p>
+          </div>
+          <PrivacyPill/>
+        </div>
+      </div>
+
+      <div className="px-5 py-3 bg-blue-50 border-b border-blue-100">
+        <p className="text-blue-800 text-sm">Tap a candidate to select them. You can change your selection before you cast.</p>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        {CANDIDATES.map((c, i) => (
+          <button key={c.id} onClick={() => pick(c)}
+            className={`w-full flex items-center gap-4 px-5 py-4 text-left border-b border-gray-100 transition-colors
+              ${c.isNota ? 'bg-gray-50 hover:bg-gray-100' : 'bg-white hover:bg-blue-50'}`}>
+            <div className="text-gray-300 font-bold text-sm w-5 text-center">{c.num}</div>
+            <div className="text-3xl w-10 text-center">{c.symbol}</div>
+            <div className="flex-1 min-w-0">
+              <p className={`font-bold text-sm truncate ${c.isNota ? 'text-gray-500' : 'text-gray-900'}`}>{c.name}</p>
+              <p className="text-gray-400 text-xs truncate">{c.party}</p>
+            </div>
+            {!c.isNota && (
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-sm font-black text-blue-700 shrink-0">
+                {c.photo}
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div className="px-5 py-3 bg-white border-t border-gray-100">
+        <p className="text-xs text-gray-400 text-center">Need help? Call 1950</p>
+      </div>
+    </div>
+  );
+}
+
+function S11_Selection({ go, choice }) {
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="bg-blue-900 px-5 py-3 sticky top-0 z-10">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white font-bold text-sm">Your ballot</p>
+            <p className="text-blue-300 text-xs">{VOTER.constituency}</p>
+          </div>
+          <PrivacyPill/>
+        </div>
+      </div>
+
+      <div className="flex-1 px-5 py-5 anim-fade overflow-y-auto">
+        {/* Selected */}
+        <div className="bg-white border-2 border-blue-500 rounded-2xl p-5 mb-5 shadow-sm">
+          <div className="flex items-center gap-4">
+            <div className="text-4xl">{choice?.symbol}</div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-extrabold text-gray-900 text-lg leading-tight">{choice?.name}</p>
+                <span className="bg-blue-500 text-white text-xs font-bold px-2.5 py-0.5 rounded-full shrink-0">✓ Selected</span>
+              </div>
+              <p className="text-gray-500 text-sm mt-0.5">{choice?.party}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5">
+          <p className="text-amber-800 text-sm font-medium">You haven't cast yet. You can still change your mind.</p>
+        </div>
+
+        <p className="text-xs text-gray-400 uppercase tracking-wide font-bold mb-3">Other candidates</p>
+        {CANDIDATES.filter(c => c.id !== choice?.id).map(c => (
+          <div key={c.id} className="flex items-center gap-4 bg-white/60 px-4 py-3 rounded-xl mb-2 opacity-40">
+            <div className="text-2xl">{c.symbol}</div>
+            <div>
+              <p className="text-gray-700 text-sm font-semibold">{c.name}</p>
+              <p className="text-gray-400 text-xs">{c.party}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-white border-t border-gray-100 px-5 pt-4 pb-8 space-y-3">
+        <button onClick={() => go(S.S12)}
+          className="w-full bg-blue-900 text-white font-bold py-4 rounded-2xl press-btn">
+          Review my vote →
+        </button>
+        <button onClick={() => go(S.S10)}
+          className="w-full text-blue-700 font-semibold text-sm py-2">
+          Change my selection
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function S12_Review({ go, choice }) {
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      <div className="bg-blue-900 px-5 py-3 sticky top-0 z-10">
+        <div className="flex items-center justify-between">
+          <p className="text-white font-bold text-sm">Review your vote</p>
+          <PrivacyPill/>
+        </div>
+      </div>
+
+      <div className="flex-1 px-5 py-6 anim-fade flex flex-col">
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-6">Confirm your vote</h2>
+
+        <div className="flex-1">
+          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 mb-5">
+            <p className="text-xs text-gray-400 uppercase tracking-wide font-bold mb-4">Your selection</p>
+            <div className="flex items-center gap-4">
+              <div className="text-5xl">{choice?.symbol}</div>
+              <div>
+                <p className="font-extrabold text-gray-900 text-xl leading-tight">{choice?.name}</p>
+                <p className="text-gray-500 text-sm mt-0.5">{choice?.party}</p>
+                <div className="flex items-center gap-1.5 mt-2">
+                  <span className="text-blue-500 font-bold">✓</span>
+                  <span className="text-blue-700 text-sm font-semibold">{choice?.name}, {choice?.abbr}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 mb-4">
+            <div className="flex items-start gap-2.5">
+              <span className="text-amber-500 text-lg mt-0.5">⚠</span>
+              <p className="text-amber-900 text-sm leading-relaxed">
+                <span className="font-bold">Review carefully.</span>{' '}
+                Once you cast, your vote cannot be changed.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3 mt-4">
+          <button onClick={() => go(S.S13)}
+            className="w-full bg-blue-900 text-white font-bold py-4 rounded-2xl press-btn">
+            Cast my vote
+          </button>
+          <button onClick={() => go(S.S10)}
+            className="w-full text-gray-500 font-medium text-sm py-2">
+            ← Change my selection
+          </button>
+        </div>
+        <p className="text-center text-xs text-gray-400 mt-3">Private session active · Your choice is private</p>
+      </div>
+    </div>
+  );
+}
+
+function S13_CastModal({ go, choice }) {
+  return (
+    <div className="min-h-screen flex items-end justify-center"
+         style={{ background:'rgba(0,0,0,0.6)', minHeight:'100vh' }}>
+      <div className="w-full bg-white rounded-t-3xl px-6 pt-6 pb-10 shadow-2xl anim-fade" style={{maxWidth:400}}>
+        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-7"/>
+        <h2 className="text-2xl font-extrabold text-gray-900 text-center mb-2">Cast your vote</h2>
+        <p className="text-gray-500 text-sm text-center mb-7 leading-relaxed">
+          This is your final step. Your vote will be recorded and cannot be changed.
+        </p>
+
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-8 flex items-center gap-4">
+          <div className="text-4xl">{choice?.symbol}</div>
+          <div>
+            <p className="font-bold text-gray-900">{choice?.name}</p>
+            <p className="text-gray-500 text-sm">{choice?.party}</p>
+          </div>
+        </div>
+
+        <button onClick={() => go(S.S14)}
+          className="w-full bg-blue-900 text-white font-extrabold rounded-2xl press-btn shadow-lg mb-4"
+          style={{ minHeight:64, fontSize:16 }}>
+          Cast my vote
+        </button>
+        <button onClick={() => go(S.S12)}
+          className="w-full border border-gray-200 text-gray-600 font-semibold py-3.5 rounded-2xl">
+          Go back
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function S14_VoteCast({ go }) {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), 700);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-14 text-center"
+         style={{ background:'linear-gradient(155deg,#082d1a 0%,#1B5E3B 100%)' }}>
+      <div className="anim-seal mb-6">
+        <ECIEmblem size={80} light/>
+      </div>
+      <h2 className="text-3xl font-extrabold text-white mb-3 anim-fade">Your vote has been cast</h2>
+      <p className="text-green-100 text-sm mb-10 anim-fade">
+        It has been securely recorded and added to the official count.
+      </p>
+
+      {show ? (
+        <div className="bg-white/10 border border-white/20 rounded-2xl p-6 mb-10 anim-fade w-full max-w-xs">
+          <p className="text-green-300 text-xs uppercase tracking-widest font-bold mb-2">Voter reference</p>
+          <p className="text-white font-mono text-2xl font-black tracking-widest">{VOTER.reference}</p>
+          <p className="text-green-200 text-xs mt-3 leading-relaxed">
+            Save this number. You can use it after the election to confirm your vote was counted.
+          </p>
+        </div>
+      ) : (
+        <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mb-10">
+          <div className="w-7 h-7 rounded-full border-2 border-white/40 border-t-white anim-spin"/>
+        </div>
+      )}
+
+      <button onClick={() => go(S.S15)}
+        className="w-full max-w-xs bg-white text-green-900 font-bold py-4 rounded-2xl press-btn shadow-xl">
+        View my receipt →
+      </button>
+    </div>
+  );
+}
+
+/* ── PHASE 4: Post-vote ──────────────────────────────────────────────────── */
+
+function S15_Receipt({ go }) {
+  const t = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true });
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      <div className="bg-green-800 px-5 py-4 flex items-center gap-3">
+        <ECIEmblem size={36} light/>
+        <div>
+          <p className="text-white font-bold">You have voted</p>
+          <p className="text-green-300 text-xs">General Election 2025</p>
+        </div>
+      </div>
+
+      <div className="flex-1 px-5 py-6 anim-fade overflow-y-auto">
+        <div className="bg-gray-50 border border-gray-100 rounded-2xl p-5 mb-5">
+          {[
+            { k:'Name', v:VOTER.name },
+            { k:'Voter reference', v:VOTER.reference, mono:true, hi:true },
+            { k:'Time of cast', v:`${t}, 7 April 2025` },
+            { k:'Constituency', v:VOTER.constituency },
+            { k:'Ward', v:VOTER.ward },
+          ].map(row => (
+            <div key={row.k} className={`mb-4 last:mb-0 ${row.hi ? 'bg-blue-50 border border-blue-100 rounded-xl p-3' : ''}`}>
+              <p className="text-xs text-gray-400 uppercase tracking-wide font-bold">{row.k}</p>
+              <p className={`font-bold mt-0.5 ${row.mono ? 'font-mono text-blue-900 text-xl tracking-wider' : 'text-gray-900'}`}>
+                {row.v}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 leading-relaxed">
+          <p className="text-green-800 text-sm">
+            Your participation has been recorded.{' '}
+            <span className="font-bold">Your choice of candidate remains completely private</span>{' '}
+            and is not stored anywhere on this system.
+          </p>
+        </div>
+
+        <button onClick={() => go(S.S16)}
+          className="w-full bg-green-800 text-white font-bold py-4 rounded-2xl press-btn mb-3">
+          See my civic badge →
+        </button>
+        <button className="w-full text-gray-500 font-medium text-sm py-2 mb-1">Save this receipt</button>
+        <button className="w-full text-gray-500 font-medium text-sm py-2">Download PDF</button>
+      </div>
+    </div>
+  );
+}
+
+function S16_Badge({ go }) {
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      <div className="bg-blue-900 px-5 py-4">
+        <p className="text-white font-bold">Your civic badge</p>
+      </div>
+
+      <div className="flex-1 px-5 py-6 anim-fade flex flex-col overflow-y-auto">
+        <div className="rounded-3xl p-8 text-center mb-5 shadow-2xl"
+             style={{ background:'linear-gradient(135deg,#0d2550 0%,#1E3A6E 50%,#1a4580 100%)' }}>
+          <ECIEmblem size={52} light/>
+          <p className="text-5xl font-black text-white mt-4 mb-1">I voted</p>
+          <p className="text-blue-300 text-sm mb-1">General Election 2025</p>
+          <p className="text-blue-300 text-sm">{VOTER.constituency}</p>
+          <p className="text-blue-400 text-xs mt-1">7 April 2025</p>
+          <div className="mt-5 pt-4 border-t border-blue-700">
+            <p className="text-blue-400 text-xs">Verified by Election Commission of India</p>
+          </div>
+        </div>
+
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5">
+          <p className="text-amber-800 text-xs text-center font-medium">
+            This badge shows you participated. It does not reveal who you voted for.
+          </p>
+        </div>
+
+        <div className="flex gap-2 mb-4">
+          {[['WhatsApp','bg-green-500'],['Instagram','bg-gradient-to-r from-purple-500 to-pink-500'],['Save','bg-gray-200 !text-gray-700']].map(([n,cls]) => (
+            <button key={n} className={`flex-1 ${cls} text-white font-semibold py-3 rounded-xl text-sm press-btn`}>{n}</button>
+          ))}
+        </div>
+
+        <div className="bg-gray-50 rounded-xl p-4 mb-5">
+          <p className="text-gray-500 text-xs text-center italic leading-relaxed">
+            "I voted in India's General Election 2025. Have you? #MainVoter #IVoted"
+          </p>
+        </div>
+
+        <button onClick={() => go(S.S17)}
+          className="w-full bg-blue-900 text-white font-bold py-4 rounded-2xl press-btn mb-2">
+          Continue to receipt →
+        </button>
+        <button className="w-full text-gray-400 text-xs py-2">Add to my profile</button>
+      </div>
+    </div>
+  );
+}
+
+function S17_VerifyVote({ go }) {
+  const [postPoll, setPostPoll] = useState(false);
+  const [ref, setRef] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const verify = () => {
+    setBusy(true);
+    setTimeout(() => {
+      setBusy(false);
+      setResult(ref.trim() === '' || ref === VOTER.reference ? 'found' : 'notfound');
+    }, 1500);
+  };
+
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      <div className="bg-blue-900 px-5 py-4">
+        <p className="text-white font-bold">Verify your vote</p>
+      </div>
+
+      <div className="flex-1 px-5 py-6 anim-fade overflow-y-auto">
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6">
+          {[['Before polls close', false],['After polls close', true]].map(([l,v]) => (
+            <button key={l} onClick={() => { setPostPoll(v); setResult(null); }}
+              className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${postPoll===v?'bg-white shadow text-blue-900':'text-gray-400'}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {!postPoll ? (
+          <>
+            <h2 className="text-xl font-extrabold text-gray-900 mb-4">Verify your vote</h2>
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-4">
+              <p className="text-blue-600 text-xs font-bold uppercase tracking-wide mb-1">Verification opens</p>
+              <p className="text-blue-900 font-bold text-sm">After polls close on 7 April 2025 at 6:00 PM</p>
+            </div>
+            <p className="text-gray-500 text-sm mb-5 leading-relaxed">
+              After voting ends, you can use your reference number to confirm that a vote was recorded from your session. Your choice of candidate will remain private.
+            </p>
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
+              <p className="text-xs text-gray-400 mb-1">Your reference</p>
+              <p className="font-mono font-black text-gray-900">{VOTER.reference}</p>
+              <p className="text-orange-600 text-xs font-bold mt-1">Save this now</p>
+            </div>
+            <button disabled
+              className="w-full bg-gray-200 text-gray-400 font-bold py-4 rounded-2xl text-xs cursor-not-allowed">
+              Check my vote — available 7 April after 6:00 PM
+            </button>
+          </>
+        ) : (
+          <>
+            <h2 className="text-xl font-extrabold text-gray-900 mb-5">Verify your vote</h2>
+            <label className="text-sm font-semibold text-gray-700 mb-2 block">Enter your voter reference number</label>
+            <input value={ref} onChange={e => setRef(e.target.value)}
+              placeholder={VOTER.reference}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 mb-4"/>
+            <button onClick={verify} disabled={busy}
+              className="w-full bg-blue-900 text-white font-bold py-4 rounded-2xl press-btn mb-5 disabled:opacity-50">
+              {busy ? <span className="flex items-center justify-center gap-2"><Spinner/>Checking...</span> : 'Verify'}
+            </button>
+            {result === 'found' && (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4 anim-fade">
+                <p className="text-green-800 text-sm leading-relaxed">
+                  ✓ A vote was recorded from this reference on <strong>7 April 2025</strong>.
+                  Your choice remains private.
+                </p>
+              </div>
+            )}
+            {result === 'notfound' && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 anim-fade">
+                <p className="text-red-800 text-sm leading-relaxed">
+                  No vote was found for this reference. If you believe this is an error, call <strong>1950</strong> or visit the ECI grievance portal.
+                </p>
+              </div>
+            )}
+            <button className="w-full text-blue-700 font-semibold text-sm py-2">
+              View the official audit report for {VOTER.constituency}
+            </button>
+          </>
+        )}
+      </div>
+
+      <div className="px-5 pb-8 pt-2 border-t border-gray-100">
+        <button onClick={() => go(S.S18)}
+          className="w-full text-gray-400 font-medium text-sm py-3">
+          Close session →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function S18_SessionClosed({ go }) {
+  const t = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true });
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      <div className="bg-blue-900 px-5 py-8 text-center">
+        <ECIEmblem size={56} light/>
+      </div>
+      <div className="flex-1 px-5 py-8 anim-fade flex flex-col text-center">
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-3">Thank you for voting</h2>
+        <p className="text-gray-500 text-sm mb-7 leading-relaxed">
+          Your vote has been cast and recorded. Your session is now closed.
+        </p>
+
+        <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 mb-4 text-left">
+          <p className="text-xs text-gray-400 uppercase tracking-wide font-bold mb-1">Session ended</p>
+          <p className="text-gray-900 font-bold text-sm">{t}, 7 April 2025</p>
+          <p className="text-xs text-gray-400 mt-2">Your reference: <span className="font-mono font-semibold">{VOTER.reference}</span></p>
+        </div>
+
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-8 text-left">
+          <p className="text-blue-800 text-sm leading-relaxed">
+            No personal data from this session is stored on your device. Your vote record is held by the Election Commission of India.
+          </p>
+        </div>
+
+        <div className="flex-1"/>
+
+        <div className="bg-gray-50 rounded-xl p-5 mb-6">
+          <p className="text-gray-500 text-sm">Questions or concerns?</p>
+          <p className="text-blue-900 font-black text-3xl">1950</p>
+          <p className="text-gray-400 text-xs mt-1">Available 24/7 · 22 languages</p>
+        </div>
+
+        <button onClick={() => go(S.S01)}
+          className="w-full bg-blue-900 text-white font-bold py-4 rounded-2xl press-btn">
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Error States ────────────────────────────────────────────────────────── */
+
+function E01_NameNotFound({ go }) {
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      <div className="bg-orange-600 px-5 py-4 flex items-center gap-3">
+        <span className="text-2xl">📋</span>
+        <p className="text-white font-bold">Eligibility check</p>
+      </div>
+      <div className="flex-1 px-5 py-6 anim-fade overflow-y-auto">
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-3">We couldn't find your name</h2>
+        <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+          This can happen if your registration was recent, or if there's a small mismatch in your details. It doesn't mean you're not registered.
+        </p>
+
+        <p className="text-sm font-bold text-gray-700 mb-3">Try again with a different detail</p>
+        <div className="space-y-2.5 mb-6">
+          {[
+            ['🪪', 'Try your EPIC number instead'],
+            ['👪', "Try your father's / mother's name with your DOB"],
+            ['🌐', 'Check your registration status on the ECI website'],
+          ].map(([icon, label]) => (
+            <button key={label} onClick={() => go(S.S02)}
+              className="w-full flex items-center gap-3 p-4 bg-gray-50 border border-gray-200 rounded-xl text-left hover:bg-gray-100 transition-colors press-btn">
+              <span className="text-xl">{icon}</span>
+              <span className="text-sm text-gray-800 font-medium">{label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
+          <p className="text-orange-800 text-sm leading-relaxed">
+            <span className="font-bold">Call 1950</span> — a representative can locate your name in the roll and assist you directly.
+          </p>
+        </div>
+
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+          <p className="text-red-800 text-sm mb-2">If you believe your name was wrongly deleted, file a grievance with the Election Commission.</p>
+          <button className="text-red-700 font-bold text-sm">File a grievance →</button>
+        </div>
+
+        <button className="w-full bg-orange-600 text-white font-bold py-4 rounded-2xl press-btn mb-3">
+          Call 1950 now
+        </button>
+        <button onClick={() => go(S.S02)} className="w-full text-gray-400 font-medium text-sm py-2">
+          ← Try again
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function E02_IDMismatch({ go }) {
+  const [tries, setTries] = useState(1);
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      <div className="bg-orange-600 px-5 py-4 flex items-center gap-3">
+        <span className="text-2xl">🪪</span>
+        <p className="text-white font-bold">Identity check — Retry</p>
+      </div>
+      <div className="flex-1 px-5 py-6 anim-fade overflow-y-auto">
+        <h2 className="text-2xl font-extrabold text-gray-900 mb-3">We couldn't verify that ID</h2>
+        <p className="text-gray-500 text-sm mb-5 leading-relaxed">
+          This sometimes happens in low light or with older ID photos. Let's try again.
+        </p>
+
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 mb-5 flex items-center gap-2">
+          <div className="flex gap-1">
+            {[1,2,3].map(n => (
+              <div key={n} className={`w-2.5 h-2.5 rounded-full ${n <= tries ? 'bg-orange-500' : 'bg-orange-200'}`}/>
+            ))}
+          </div>
+          <p className="text-orange-700 text-sm font-semibold">Attempt {tries} of 3</p>
+        </div>
+
+        <p className="text-sm font-bold text-gray-700 mb-3">Tips for a clear scan</p>
+        <div className="space-y-2 mb-6">
+          {['Hold your ID flat','Ensure good lighting','Avoid glare on the card'].map(tip => (
+            <div key={tip} className="flex items-center gap-2.5">
+              <span className="text-green-500 font-bold">✓</span>
+              <span className="text-gray-700 text-sm">{tip}</span>
+            </div>
+          ))}
+        </div>
+
+        {tries < 3 ? (
+          <button onClick={() => { if (tries < 3) { setTries(t => t + 1); go(S.S06); } }}
+            className="w-full bg-blue-900 text-white font-bold py-4 rounded-2xl press-btn mb-3">
+            Try again — attempt {tries} of 3
+          </button>
+        ) : (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+            <p className="text-red-800 text-sm leading-relaxed">
+              Your identity couldn't be verified automatically. Please call 1950 for assisted verification.
+            </p>
+          </div>
+        )}
+
+        <button className="w-full text-blue-700 font-semibold text-sm py-2 mb-3">
+          Use a different accepted ID instead
+        </button>
+        <button className="w-full bg-orange-100 text-orange-800 font-bold py-4 rounded-2xl press-btn">
+          Call 1950
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function E03_AlreadyVoted({ go }) {
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      <div className="bg-red-700 px-5 py-4 flex items-center gap-3">
+        <span className="text-2xl">🔴</span>
+        <p className="text-white font-bold">Duplicate vote flag</p>
+      </div>
+      <div className="flex-1 px-5 py-6 anim-fade overflow-y-auto">
+        <h2 className="text-xl font-extrabold text-gray-900 mb-3 leading-tight">
+          A vote has already been recorded for this voter ID
+        </h2>
+        <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+          If you have not voted, this may indicate that someone else has used your details. This is a serious matter.
+        </p>
+
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
+          <p className="text-green-800 font-bold text-sm mb-1">If you voted</p>
+          <p className="text-green-700 text-sm">Your vote was successfully cast.</p>
+          <p className="text-green-700 font-mono font-bold text-sm mt-1">Reference: {VOTER.reference}</p>
+        </div>
+
+        <div className="bg-red-50 border border-red-300 rounded-xl p-4 mb-6">
+          <p className="text-red-800 font-bold text-sm mb-1">If you did NOT vote</p>
+          <p className="text-red-700 text-sm mb-3 leading-relaxed">
+            File a grievance immediately. This requires urgent attention.
+          </p>
+          <button className="w-full bg-red-700 text-white font-bold py-3 rounded-xl text-sm press-btn">
+            Report this now — this is urgent
+          </button>
+        </div>
+
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-5">
+          <p className="text-red-800 font-bold text-sm">Call 1950 immediately</p>
+          <p className="text-red-700 text-sm mt-1">Our team will open a case and investigate.</p>
+        </div>
+
+        <div className="bg-gray-100 rounded-xl p-3 text-center">
+          <p className="text-gray-400 text-xs">Session locked · Cannot proceed to ballot</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function E04_Timeout({ go }) {
+  return (
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 py-14 anim-fade">
+      <div className="text-6xl mb-6">⏱️</div>
+      <h2 className="text-2xl font-extrabold text-gray-900 mb-3 text-center">Your session has ended</h2>
+      <p className="text-gray-500 text-sm text-center mb-5 leading-relaxed max-w-xs">
+        To protect your security, inactive sessions close automatically. Your vote was not cast.
+      </p>
+
+      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-8 w-full max-w-xs text-center">
+        <p className="text-blue-800 text-sm font-medium leading-relaxed">
+          <span className="font-bold">No vote has been recorded.</span><br/>
+          Your voter ID has not been marked.
+        </p>
+      </div>
+
+      <button onClick={() => go(S.S05)}
+        className="w-full max-w-xs bg-blue-900 text-white font-bold py-4 rounded-2xl press-btn mb-5">
+        Start a new session →
+      </button>
+      <p className="text-gray-400 text-xs text-center max-w-xs leading-relaxed">
+        You will need to verify your identity again. If you were having trouble, call{' '}
+        <span className="font-bold text-blue-700">1950</span> before starting again.
+      </p>
+    </div>
+  );
+}
+
+/* ── Root App ────────────────────────────────────────────────────────────── */
+
+function App() {
+  const [screen, setScreen] = useState(S.S01);
+  const [choice, setChoice]   = useState(null);
+  const [nav, setNav]         = useState(false);
+
+  const go = (s) => {
+    setScreen(s);
+    setNav(false);
+    window.scrollTo(0, 0);
+  };
+
+  const p = { go, choice, setChoice };
+
+  const render = () => {
+    switch (screen) {
+      case S.S01: return <S01_Splash {...p}/>;
+      case S.S02: return <S02_VoterRoll {...p}/>;
+      case S.S03: return <S03_ConstituencyInfo {...p}/>;
+      case S.S04: return <S04_Guide {...p}/>;
+      case S.S05: return <S05_SessionStart {...p}/>;
+      case S.S06: return <S06_PhotoID {...p}/>;
+      case S.S07: return <S07_VoterMatched {...p}/>;
+      case S.S08: return <S08_DigitalInk {...p}/>;
+      case S.S09: return <S09_PrivateSession {...p}/>;
+      case S.S10: return <S10_Ballot {...p}/>;
+      case S.S11: return <S11_Selection {...p}/>;
+      case S.S12: return <S12_Review {...p}/>;
+      case S.S13: return <S13_CastModal {...p}/>;
+      case S.S14: return <S14_VoteCast {...p}/>;
+      case S.S15: return <S15_Receipt {...p}/>;
+      case S.S16: return <S16_Badge {...p}/>;
+      case S.S17: return <S17_VerifyVote {...p}/>;
+      case S.S18: return <S18_SessionClosed {...p}/>;
+      case S.E01: return <E01_NameNotFound {...p}/>;
+      case S.E02: return <E02_IDMismatch {...p}/>;
+      case S.E03: return <E03_AlreadyVoted {...p}/>;
+      case S.E04: return <E04_Timeout {...p}/>;
+      default:    return <S01_Splash {...p}/>;
+    }
+  };
+
+  /* Group screens by phase for the nav panel */
+  const phases = [
+    { label:'Phase 1 — Pre-vote',                screens: SCREEN_META.filter(s => s.phase.includes('Pre-vote')) },
+    { label:'Phase 2 — Identity verification',   screens: SCREEN_META.filter(s => s.phase.includes('Identity')) },
+    { label:'Phase 3 — Voting session',          screens: SCREEN_META.filter(s => s.phase.includes('Voting')) },
+    { label:'Phase 4 — Post-vote',               screens: SCREEN_META.filter(s => s.phase.includes('Post')) },
+    { label:'Error & Edge States',               screens: SCREEN_META.filter(s => s.phase.includes('Error')) },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-300 flex items-start justify-center py-0 md:py-8">
+      <div className="relative w-full max-w-sm shadow-2xl" style={{ minHeight:'100vh', background:'#fff' }}>
+        {/* Dev nav toggle */}
+        <button onClick={() => setNav(n => !n)}
+          className="fixed top-3 right-3 z-50 bg-gray-900/80 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm shadow-lg font-medium">
+          {nav ? '✕ Close' : '☰ All screens'}
+        </button>
+
+        {/* Nav drawer */}
+        {nav && (
+          <div className="fixed top-0 right-0 z-40 h-full bg-gray-950 overflow-y-auto shadow-2xl"
+               style={{ width:260 }}>
+            <div className="p-4 pt-12">
+              <p className="text-white font-black text-sm mb-5 tracking-tight">Screen Navigator</p>
+              {phases.map(ph => (
+                <div key={ph.label} className="mb-5">
+                  <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2 px-1">{ph.label}</p>
+                  <div className="space-y-0.5">
+                    {ph.screens.map(s => (
+                      <button key={s.id} onClick={() => go(s.id)}
+                        className={`w-full text-left px-3 py-2.5 rounded-lg text-xs transition-colors ${
+                          screen === s.id ? 'bg-blue-600 text-white font-bold' : 'text-gray-300 hover:bg-gray-800'
+                        }`}>
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {render()}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
